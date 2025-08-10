@@ -2,5 +2,45 @@ sudo apt update
 sudo apt install docker.io docker-compose -y
 
 
+-- master
+sudo kubeadm init --control-plane-endpoint=master.orb.local --pod-network-cidr=10.244.0.0/16
 
 
+
+-- node
+kubeadm join master.orb.local:6443 --token oettck.wyrkgl0tosj4hb6h \
+	--discovery-token-ca-cert-hash sha256:f72d342609d11af3ed47e9b2bf4b4eddd923791f58b7c791220055137a930633
+
+
+
+-- fix master
+sudo systemctl status kubelet
+sudo netstat -tulnp | grep 6443
+
+mkdir -p $HOME/.kube
+sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+kubectl get nodes
+
+
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+
+
+
+
+
+
+# Reset kubeadm, xóa config cũ tren node
+sudo kubeadm reset -f
+
+# Xóa cấu hình mạng CNI để tránh lỗi NotReady sau khi join
+sudo ip link delete cni0
+sudo ip link delete flannel.1 2>/dev/null
+sudo ip link delete vxlan.calico 2>/dev/null
+sudo iptables -F && sudo iptables -t nat -F
+sudo iptables -X && sudo iptables -t nat -X
+sudo rm -rf /var/lib/cni/
+
+# Dừng kubelet nếu đang chạy
+sudo systemctl stop kubelet
